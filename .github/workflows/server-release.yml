@@ -166,11 +166,12 @@ jobs:
           case "$ver" in [0-9]*.[0-9]*) ;; *) echo "unexpected caddy version '$ver'" >&2; exit 1 ;; esac
           for arch in amd64 arm64; do
             docker pull --platform "linux/$arch" "$ref"
-            docker tag "$ref" "caddy:$ver"
-            docker save -o "$B/caddy-$ver-$arch.tar" "caddy:$ver"
-            docker rmi "caddy:$ver"
-            docker rmi "$ref" 2>/dev/null || true   # removing the tag already deleted the image when it was the only reference
+            docker tag "$ref" "caddy:$ver-$arch"
+            docker save -o "$B/caddy-$ver-$arch.tar" "caddy:$ver-$arch"
+            docker rmi "caddy:$ver-$arch"
           done
+          # Keep the digest reference until both architecture images have been exported.
+          docker rmi "$ref" 2>/dev/null || true
           cat > "$B/docker-compose.bundle.yml" <<EOF
           # From the offline bundle csa-onprem-${V}. The proxy image is caddy-${ver}-<arch>.tar, loaded by tag:
           # docker-compose.trial.yml pins caddy by digest, and a loaded tarball has a tag but no digest, so this
