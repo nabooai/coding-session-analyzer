@@ -141,10 +141,13 @@ jobs:
         run: |
           for arch in amd64 arm64; do
             docker pull --platform "linux/$arch" "$SLIM:$V"
-            docker tag "$SLIM:$V" "csa-server-slim:$V"
-            docker save -o "$B/csa-server-slim-$V-$arch.tar" "csa-server-slim:$V"
-            docker rmi "csa-server-slim:$V" "$SLIM:$V"
+            docker tag "$SLIM:$V" "csa-server-slim:$V-$arch"
+            docker save -o "$B/csa-server-slim-$V-$arch.tar" "csa-server-slim:$V-$arch"
+            docker rmi "csa-server-slim:$V-$arch"
           done
+          # Keep the registry reference until both platform manifests have been exported. Removing it
+          # inside the loop can delete the manifest-list metadata needed by the second pull.
+          docker rmi "$SLIM:$V" 2>/dev/null || true
 
       # The compose pins Caddy by digest. A loaded tarball carries a tag but never a digest (the digest is
       # a registry manifest, which `docker load` cannot reconstruct), so the tarball is saved under a tag and
