@@ -1,0 +1,3 @@
+# Named sessions whose extraction caches freeze into the snapshot (one prefix per line).
+# Empty: every golden case seeds its own material. Add a prefix only for a case backed by your own
+# corpus; run.py exits 2 with a re-snapshot instruction if a `needs` prefix is missing.

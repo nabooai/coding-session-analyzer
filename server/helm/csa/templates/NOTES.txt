@@ -1,0 +1,47 @@
+{{- $ns := .Release.Namespace }}{{ $d := printf "deploy/%s" .Release.Name }}
+CSA {{ .Values.image.tag | default .Chart.AppVersion }} at https://{{ include "csa.host" . }}
+
+1. Check the pod. Without --wait, helm says "deployed" even when migrate fails:
+
+     kubectl -n {{ $ns }} rollout status {{ $d }}
+     kubectl -n {{ $ns }} get pods          # 3/3 Running. Init:Error: kubectl -n {{ $ns }} logs {{ $d }} -c migrate
+     kubectl -n {{ $ns }} describe pod <pod>   # not Running: its Events name the cause (pull, volume, migrate)
+{{- if eq .Values.frontDoor "none" }}
+
+   frontDoor is none: route https://{{ include "csa.host" . }}/ to service {{ .Release.Name }}:8766
+   and /mcp to {{ .Release.Name }}:58768 yourself.
+{{- if and .Values.workspace.adminEmail (not (and .Values.okta.issuer .Values.okta.clientId)) }}
+   Until that route exists, reach the dashboard with
+
+     kubectl -n {{ $ns }} port-forward svc/{{ .Release.Name }} 8766:8766
+
+   and open the sign-in link below in Chrome with http://localhost:8766 in place of https://{{ include "csa.host" . }}.
+   Laptops need the real route.
+{{- end }}
+{{- end }}
+
+2. Sign in.
+{{- if and .Values.okta.issuer .Values.okta.clientId }}
+
+     Open https://{{ include "csa.host" . }} and Sign in with Okta.
+{{- if .Values.okta.adminGroup }}
+     Members of "{{ .Values.okta.adminGroup }}" are admins.
+{{- end }}
+{{- else if .Values.workspace.adminEmail }}
+
+     First admin ({{ .Values.workspace.adminEmail }}), open the link this prints:
+       kubectl -n {{ $ns }} logs {{ $d }} -c migrate | grep "admin sign-in link"
+
+     Everyone else: Team, or a shared invite code:
+       kubectl -n {{ $ns }} exec {{ $d }} -c api -- /app/.venv/bin/python csa.py org invite default
+{{- else }}
+
+     Nobody can sign in yet. Set workspace.adminEmail (built-in sign-in) or okta.issuer and
+     okta.clientId, then helm upgrade.
+{{- end }}
+
+3. Connect a laptop:
+
+     curl -sSL https://{{ include "csa.host" . }}/install | sh
+
+Check: curl -s https://{{ include "csa.host" . }}/api/health

@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+# extracted corpus: contains real session content (secrets pointers, PII, infra ids) — never push
+data/
+.env
+# UI build artifacts (Vite)
+ui/node_modules/
+ui/dist/
+site/
+# published client binaries (CI artifacts, bind-mounted) - never staged
+server/client-dist/
+
+# local secret: Slack incoming webhook for workspace requests (see ~/.csa/request-webhook.txt)
+.webhook-slack.txt
+# full-history audit details and private client dictionary; public output is category-only
+.security-audit-private/
+security/private-dictionary.txt
+worklog.md
+# throwaway dbs alembic.ini builds for autogenerate and check
+server/build/

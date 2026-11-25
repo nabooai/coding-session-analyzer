@@ -1,0 +1,185 @@
+# The self-host compose: one CSA server for one company, on that company's box.
+#
+#   .env           CSA_PUBLIC_URL (required) plus ONE model endpoint; start from .env.example
+#   config/        optional config.json, the same file the Helm chart renders: workspace name and domain, the
+#                  first admin (workspace.adminEmail gets a one-person sign-in link in `docker compose logs
+#                  migrate`), Okta, telemetry. Applied by every `migrate`, so edit it and `up -d` again.
+#   settings       everything else (budget, model, redaction, retention, ...) is Admin > Settings in the app,
+#                  or `csa.py org config <org> --set field=value` on the box. None of it is an env var.
+#   up             docker compose -f docker-compose.trial.yml up -d             (the 10-minute path: docs/quickstart.md)
+#                  docker compose -f docker-compose.trial.yml --profile proxy up -d   (on-prem: docs/public-release/install-server.md)
+#
+# One file, two shapes:
+#   * on-prem (the runbook): `--profile proxy` puts Caddy in front, TLS ends on this box, api and mcp are
+#     reachable only through it, and sign-in is the company's OpenID issuer (`csa.py sso set`).
+#   * trial: no profile; api and mcp answer on 127.0.0.1 for this machine, an SSH tunnel, or a reverse proxy
+#     or tunnel of your own that routes /mcp to 58768 and the rest to 8766.
+# `migrate` runs first in both: it hands ./data to the server's uid, applies config/config.json, and brings
+# every data file to the current schema. api, mcp and etl start only after it exits 0. The laptop client
+# `/install` hands out is built into the image from the same commit, so a new image is a new client.
+#
+# Corporate CA and egress proxy. When the model endpoint or the identity provider presents a certificate
+# from a private CA, put that root (PEM) at ./certs/ca.crt, then in api, mcp AND etl uncomment the four
+# `# ca:` environment lines and the `# ca:` certs mount. These are the standard variables Python
+# (SSL_CERT_FILE, which is loaded beside the public roots) and the Claude Code binary (NODE_EXTRA_CA_CERTS)
+# read; HTTPS_PROXY and NO_PROXY are the same kind of thing for a box that reaches its endpoint through an
+# egress proxy. None of them is a CSA knob.
+
+# The published image has no Claude Code. Bedrock, Vertex and subscription tokens need one you build in a clone:
+# `docker build -f server/Dockerfile --target with-claude-code -t csa-server:with-claude-code .`, then
+# CSA_SERVER_IMAGE=csa-server:with-claude-code (docs/quickstart.md). With it, the credentials below run through the CLI.
+x-image: &image ${CSA_SERVER_IMAGE:-ghcr.io/nabooai/csa-server-slim:latest}
+
+# The Claude credential etl (extraction, judging) and mcp (routing, synthesis) run on when Admin > AI Models
+# registers no provider. Set at most ONE in .env, or none and add a provider (Anthropic, OpenAI, Azure OpenAI;
+# Bedrock and Vertex on the with-claude-code image) on AI Models once signed in. With neither, the api logs
+# "LLM provider: NONE" and nothing is read.
+x-llm-provider: &llm-provider
+  ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}             # an Anthropic-format gateway; unset is Anthropic itself
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}                     # direct OpenAI HTTPS setup; never a subscription token
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  OPENAI_MAIN_MODEL: ${OPENAI_MAIN_MODEL:-gpt-5}
+  OPENAI_SMALL_MODEL: ${OPENAI_SMALL_MODEL:-gpt-5-mini}
+  CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}   # with-claude-code only: `claude setup-token`, one person's own use
+  CLAUDE_CODE_USE_BEDROCK: ${CLAUDE_CODE_USE_BEDROCK:-}   # with-claude-code only: =1 for Amazon Bedrock (plus your AWS credentials)
+  CLAUDE_CODE_USE_VERTEX: ${CLAUDE_CODE_USE_VERTEX:-}     # with-claude-code only: =1 for Google Vertex (plus GCP credentials)
+
+services:
+  migrate:
+    image: *image
+    user: "0"                                            # root only for the first line; csa.py runs as uid 10001
+    command:
+      - sh
+      - -c
+      - |
+        setpriv --reuid=10001 --regid=10001 --clear-groups test -w /app/data || chown -R 10001:10001 /app/data
+        if [ -f /etc/csa/config.json ]; then
+          install -m 0600 -o 10001 -g 10001 /etc/csa/config.json /tmp/csa-config.json
+          export CSA_CONFIG_PATH=/tmp/csa-config.json
+        fi
+        exec setpriv --reuid=10001 --regid=10001 --clear-groups /app/.venv/bin/python csa.py migrate
+    environment:
+      CSA_PUBLIC_URL: ${CSA_PUBLIC_URL:?set CSA_PUBLIC_URL in .env to the URL people will type, e.g. https://csa.example.com}
+    volumes:
+      - "./data:/app/data"
+      - "./config:/etc/csa:ro"
+
+  api:
+    image: *image
+    command: /app/.venv/bin/python apiserver.py
+    environment:
+      <<: *llm-provider
+      CSA_BIND: "0.0.0.0"
+      CSA_API_PORT: "8766"
+      CSA_MCP_PORT: "58768"
+      # The URL people type. Every installer, sign-in redirect and Connect one-liner is built from it, never
+      # from the Host header, so /install answers 421 without it. https, no path, no trailing slash.
+      CSA_PUBLIC_URL: ${CSA_PUBLIC_URL:?set CSA_PUBLIC_URL in .env to the URL people will type, e.g. https://csa.example.com}
+      CSA_MCP_URL: ${CSA_MCP_URL:-${CSA_PUBLIC_URL}/mcp} # what laptops register: the proxy (or your tunnel) routes /mcp to mcp:58768; the loopback trial sets it to http://127.0.0.1:58768/mcp
+      CSA_AUTH: ${CSA_AUTH:-org}                         # 'org' is the authenticated mode; 'off' is loopback dev only
+      CSA_AUTH_TOKEN: ${CSA_AUTH_TOKEN:-}                # the open-egress trial's shared invite; refused once an org is adopted
+      # ca: SSL_CERT_FILE: /app/certs/ca.crt
+      # ca: NODE_EXTRA_CA_CERTS: /app/certs/ca.crt
+      # ca: HTTPS_PROXY: http://proxy.example.com:3128
+      # ca: NO_PROXY: localhost,127.0.0.1,api,mcp,etl
+    ports:
+      - "127.0.0.1:8766:8766"                            # loopback only: the proxy profile, a tunnel or an SSH tunnel is the way in
+    volumes:
+      - "./data:/app/data"                               # the corpus, the control plane and the queue; never in the image
+      - "./config:/etc/csa:ro"                           # the first admin's recovery link: `csa.py org admin-link`
+      # ca: - "./certs:/app/certs:ro"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:                                         # /api/health is the open route; 503 (control plane unreadable) fails it
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  mcp:
+    image: *image
+    command: /app/.venv/bin/python mcp_server.py --http
+    environment:
+      <<: *llm-provider
+      CSA_MCP_BIND: "0.0.0.0"
+      CSA_MCP_PORT: "58768"
+      CSA_AUTH: ${CSA_AUTH:-org}
+      CSA_AUTH_TOKEN: ${CSA_AUTH_TOKEN:-}
+      # ca: SSL_CERT_FILE: /app/certs/ca.crt
+      # ca: NODE_EXTRA_CA_CERTS: /app/certs/ca.crt
+      # ca: HTTPS_PROXY: http://proxy.example.com:3128
+      # ca: NO_PROXY: localhost,127.0.0.1,api,mcp,etl
+    ports:
+      - "127.0.0.1:58768:58768"
+    volumes:
+      - "./data:/app/data"
+      # ca: - "./certs:/app/certs:ro"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:                                         # /mcp needs the handshake and a token, so probe the socket
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import socket; socket.create_connection(('127.0.0.1', 58768), 2).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  etl:
+    image: *image
+    command: /app/.venv/bin/python -m analyzer.drain_loop
+    environment:
+      <<: *llm-provider                                  # workers, model and budget are Settings, read every tick
+      # ca: SSL_CERT_FILE: /app/certs/ca.crt
+      # ca: NODE_EXTRA_CA_CERTS: /app/certs/ca.crt
+      # ca: HTTPS_PROXY: http://proxy.example.com:3128
+      # ca: NO_PROXY: localhost,127.0.0.1,api,mcp,etl
+    volumes:
+      - "./data:/app/data"                               # the SAME queue and corpus the api writes; the ETL drains it
+      # ca: - "./certs:/app/certs:ro"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # `--profile backup`: a daily snapshot + verify + prune loop (analyzer/backup.py, csa.py backup).
+  # `--keep 7` is a command argument you edit here, not an env var. Raise or lower the retained count
+  # by editing this line and recreating the service.
+  backup:
+    profiles: ["backup"]
+    image: *image
+    command: ["sh", "-c", "while true; do /app/.venv/bin/python csa.py backup --keep 7; sleep 86400; done"]
+    volumes:
+      - "./data:/app/data"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # `--profile proxy`: TLS on this box. Serves CSA_PUBLIC_URL on 443 from ./certs/fullchain.pem +
+  # privkey.pem when they exist, else from Caddy's internal CA (export its root with
+  # `docker compose --profile proxy exec proxy cat /data/caddy/pki/authorities/local/root.crt`). No ACME
+  # and no OCSP: the proxy makes no outbound connection. /mcp goes to mcp, everything else to api.
+  proxy:
+    profiles: ["proxy"]
+    image: caddy@sha256:13ba145cba2f3e28fa801994876e4c086d1b95d5aa2a520a734765ffb6b12017   # caddy 2.11.4
+    command: ["sh", "-c", "case \"$$CSA_PUBLIC_URL\" in https://*:*|https://*/*) echo 'CSA_PUBLIC_URL must be https://<host> with no port and no path: the proxy listens on 443' >&2; exit 1;; esac; if [ -s /certs/privkey.pem ]; then echo 'tls /certs/fullchain.pem /certs/privkey.pem'; else echo 'tls internal'; fi > /tmp/tls.caddy && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"]
+    environment:
+      CSA_PUBLIC_URL: ${CSA_PUBLIC_URL:?set CSA_PUBLIC_URL in .env to the URL people will type, e.g. https://csa.example.com}
+    ports:
+      - "443:443"
+    volumes:
+      - "./Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "./certs:/certs:ro"
+      - "caddy-data:/data"                               # the internal CA persists, so laptops trust one root across restarts
+    depends_on:
+      - api
+      - mcp
+    restart: unless-stopped
+
+volumes:
+  caddy-data: {}

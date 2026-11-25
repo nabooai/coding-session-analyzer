@@ -1,0 +1,10 @@
+{
+  "name": "csa",
+  "version": "0.2.0",
+  "defaultEnabled": false,
+  "description": "CSA team memory for Claude Code, as readable Python with no compiled binary. Inert until you enable it and run /csa:connect. Then it redacts on this machine, recalls what the team knows on each prompt and ships finished sessions to your own CSA server, or sends only the sessions you choose with /csa:connect --manual.",
+  "author": {
+    "name": "CSA contributors"
+  },
+  "repository": "https://github.com/nabooai/coding-session-analyzer"
+}

@@ -1,0 +1,39 @@
+site_name: CSA Documentation
+site_description: Turn your team's AI coding sessions into shared, usable knowledge.
+repo_url: https://github.com/nabooai/coding-session-analyzer
+repo_name: nabooai/coding-session-analyzer
+edit_uri: edit/master/docs-site/
+docs_dir: docs-site
+strict: true
+theme:
+  name: material
+  language: en
+  palette:
+    scheme: default
+    primary: white
+    accent: black
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Overview: index.md
+  - Getting started: getting-started.md
+  - Model setup: models.md
+  - Claude Code plugin: plugin.md
+  - Architecture: architecture.md
+  - API and MCP: api.md
+  - Privacy and sharing: privacy.md
+  - Operations: operations.md
+  - Troubleshooting: troubleshooting.md
+  - Security: security.md
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - fenced_code
+  - tables
+  - toc:
+      permalink: true
+extra:
+  generator: false

@@ -1,0 +1,14 @@
+{
+  "name": "csa",
+  "owner": {
+    "name": "CSA contributors"
+  },
+  "description": "CSA (Coding Session Analyzer): team memory for Claude Code",
+  "plugins": [
+    {
+      "name": "csa",
+      "source": "./csa-plugin",
+      "description": "Team memory for Claude Code in readable Python with no compiled binary. Installs disabled. Read it, enable it, then run /csa:connect."
+    }
+  ]
+}

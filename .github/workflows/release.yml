@@ -1,0 +1,137 @@
+name: Release
+
+# Every merge/push to master ships a production release so clients can download
+# the latest csa-client binary from the Releases page.
+on:
+  push:
+    branches: [master]
+    paths: ['client/**', '.github/workflows/release.yml']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build + checksum + attest, but do NOT cut a GitHub release (pipeline validation)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write        # create tags + releases
+  id-token: write        # OIDC token for build provenance attestation
+  attestations: write    # write the attestation to the repo
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: client/go.mod
+
+      - run: go test ./...
+
+      # Cross-compile every platform the client CLAUDE.md lists; names must match the README.
+      - name: Build binaries + checksums
+        run: |
+          mkdir -p dist
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64; do
+            os=${target%/*}; arch=${target#*/}
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+              go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+              -o "dist/csa-client-$os-$arch$ext" .
+          done
+          (cd dist && sha256sum csa-client-* > checksums.txt)
+        env:
+          VERSION: v0.1.${{ github.run_number }}
+
+      # Signed, verifiable build provenance for every artifact (runs on dry-run too).
+      # subject-path is repo-root-relative — `uses:` steps ignore the `client` working-directory.
+      - name: Attest build provenance
+        continue-on-error: true   # not available on user-owned private repos; keep non-blocking
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'client/dist/*'
+
+      # Homebrew handoff. The release repo is PRIVATE, so a public `brew install` cannot
+      # download release assets anonymously, and no tap-write secret (a PAT with push access
+      # to a separate Homebrew-tap repo) is configured here. So instead of committing to a tap,
+      # we render the bumped formula stanza into the job summary and leave the tap commit as a
+      # documented MANUAL step. To automate later: add a `TAP_TOKEN` secret with write access
+      # to `<you>/homebrew-tap`, then in this step `git clone` the tap, drop this file at
+      # `Formula/csa-client.rb`, and `git commit && git push` with that token. Until the repo's
+      # releases are public (or the tap can auth), manual copy is the honest, working path.
+      - name: Homebrew formula stanza (job summary; manual tap handoff)
+        env:
+          VERSION: v0.1.${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          base="https://github.com/$REPO/releases/download/$VERSION"
+          sha() { grep -E " csa-client-$1\$" dist/checksums.txt | awk '{print $1}'; }
+          cat > csa-client.rb <<RUBY
+          class CsaClient < Formula
+            desc "Claude Session Analyzer client - ambient team memory for Claude Code"
+            homepage "https://github.com/$REPO"
+            version "$VERSION"
+
+            on_macos do
+              on_arm do
+                url "$base/csa-client-darwin-arm64"
+                sha256 "$(sha darwin-arm64)"
+              end
+              on_intel do
+                url "$base/csa-client-darwin-amd64"
+                sha256 "$(sha darwin-amd64)"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "$base/csa-client-linux-arm64"
+                sha256 "$(sha linux-arm64)"
+              end
+              on_intel do
+                url "$base/csa-client-linux-amd64"
+                sha256 "$(sha linux-amd64)"
+              end
+            end
+
+            def install
+              bin.install Dir["csa-client-*"].first => "csa-client"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/csa-client version")
+            end
+          end
+          RUBY
+          {
+            echo "## Homebrew formula for $VERSION"
+            echo
+            [ "$DRY_RUN" = "true" ] && echo "> DRY RUN: no release was cut, so these download URLs 404 until a real run publishes \`$VERSION\`."
+            echo
+            echo "The release repo is **private**: a public \`brew install\` can't fetch release assets"
+            echo "anonymously, and no tap-write secret is set here, so committing to a Homebrew tap is a"
+            echo "**manual** step. Copy the stanza below into \`Formula/csa-client.rb\` in your tap repo"
+            echo "(\`brew tap <you>/tap && brew install csa-client\`):"
+            echo
+            echo '```ruby'
+            cat csa-client.rb
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: v0.1.${{ github.run_number }}
+        run: |
+          gh release create "$VERSION" dist/* \
+            --title "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --latest

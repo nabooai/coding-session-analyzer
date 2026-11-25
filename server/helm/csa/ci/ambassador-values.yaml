@@ -1,0 +1,3 @@
+host: csa.example.com
+image: {tag: ci}
+workspace: {name: Example, domain: example.com, adminEmail: admin@example.com}

@@ -1,0 +1,5 @@
+host: csa.example.com
+image: {tag: ci}
+frontDoor: none
+imagePullSecrets: []
+storage: {existingClaim: csa-restored}

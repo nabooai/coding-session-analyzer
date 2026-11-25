@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "the hostname people type, without https:// or a path",
+      "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$"
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "imagePullSecrets": {"type": "array", "items": {"type": "string"}},
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "domain": {"type": "string"},
+        "adminEmail": {"type": "string", "pattern": "^([^@\\s]+@[^@\\s]+)?$"}
+      }
+    },
+    "okta": {
+      "type": "object",
+      "properties": {
+        "issuer": {"type": "string", "pattern": "^(https://\\S+)?$"},
+        "clientId": {"type": "string"},
+        "adminGroup": {"type": "string"}
+      }
+    },
+    "llm": {
+      "type": "object",
+      "properties": {"secretName": {"type": "string", "minLength": 1}}
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {"otlpEndpoint": {"type": "string", "pattern": "^(https?://\\S+)?$"}}
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "minLength": 1},
+        "storageClass": {"type": "string"},
+        "existingClaim": {"type": "string"}
+      }
+    },
+    "frontDoor": {"enum": ["ambassador", "nginx", "none"]},
+    "tls": {
+      "type": "object",
+      "properties": {
+        "secretName": {"type": "string", "minLength": 1},
+        "clusterIssuer": {"type": "string"}
+      }
+    },
+    "ambassador": {
+      "type": "object",
+      "properties": {"createHost": {"type": "boolean"}}
+    },
+    "nginx": {
+      "type": "object",
+      "properties": {"className": {"type": "string", "minLength": 1}}
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ingressFrom": {"type": "array", "items": {"type": "object"}},
+        "egress": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "api": {"type": "object"},
+        "mcp": {"type": "object"},
+        "etl": {"type": "object"}
+      }
+    }
+  }
+}

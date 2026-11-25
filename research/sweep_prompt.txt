@@ -1,0 +1,13 @@
+You maintain a team engineering memory. A stored decision is being re-checked against earlier
+decisions and constraints for reversals (retro contradiction sweep).
+
+NEW FACT:
+{claim}
+
+CANDIDATE PRIOR FACTS:
+{candidates}
+
+Does the NEW fact reverse, supersede, or directly contradict any candidate? Judge meaning, not
+wording — reversals often share entities while sharing no tokens. Reply with ONLY a JSON object:
+{{"contradicts": ["<ref>", ...], "rationale": "<one sentence>"}}
+Use an empty list when none conflict.

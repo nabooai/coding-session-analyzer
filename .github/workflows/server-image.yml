@@ -1,0 +1,113 @@
+name: Server image
+
+# Publish the CSA server as a prebuilt image to GHCR so a tenant/lab runs from `docker pull` +
+# docker-compose.trial.yml — no repo clone, no source tree to browse. (Honest caveat: the app is
+# Python, so the .py source is still inside the image and is extractable — this stops casual copying,
+# it is not IP protection. For zero exposure keep the core hosted.)
+# Continuous :latest on every master push; PINNED versioned releases are cut by server-release.yml.
+# Two packages, same tags, because a GHCR package has one visibility across all its tags:
+#   csa-server       the with-claude-code target, what production pulls (lab-<sha>); it redistributes the Claude Code
+#                    binary, so it never goes public
+#   csa-server-slim  the default build, no Claude Code
+on:
+  push:
+    branches: [master]
+    paths: ['server/**', 'client/**', '.github/workflows/server-image.yml']   # the image builds the client too
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'extra image tag (besides latest)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write          # push to GHCR with the built-in GITHUB_TOKEN — no PAT needed
+
+env:
+  IMAGE: ghcr.io/nabooai/csa-server
+  SLIM: ghcr.io/nabooai/csa-server-slim
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: vars
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"   # lab-<sha> tag, matching the prod convention
+
+      # GHCR push auth. The private, user-owned `csa-server` package does NOT grant the ephemeral
+      # Actions GITHUB_TOKEN write access (that requires linking the repo under the package's "Manage
+      # Actions access"), so every push denied with `permission_denied: read_package` and CI failed for
+      # weeks. Prefer a GHCR_PAT secret (a fine-grained PAT with write:packages on this package) when
+      # present; fall back to GITHUB_TOKEN for the case where the package HAS been granted repo write.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+
+      # multi-arch: the lab box is arm64, external tenants are usually amd64 — publish both.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Smoke both amd64 images before anything is pushed: non-root, the pinned CLI or none, venv imports, VERSION,
+      # baked UI and client.
+      - name: Build with-claude-code amd64 for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          target: with-claude-code
+          platforms: linux/amd64
+          load: true
+          build-args: CSA_VERSION=lab-${{ steps.vars.outputs.short }}
+          tags: csa-server:smoke
+
+      - name: Smoke test with-claude-code
+        run: bash server/image-smoke.sh csa-server:smoke lab-${{ steps.vars.outputs.short }} with-claude-code
+
+      - name: Build slim amd64 for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          platforms: linux/amd64
+          load: true
+          build-args: CSA_VERSION=lab-${{ steps.vars.outputs.short }}
+          tags: csa-server-slim:smoke
+
+      - name: Smoke test slim
+        run: bash server/image-smoke.sh csa-server-slim:smoke lab-${{ steps.vars.outputs.short }} slim
+
+      # Publish master as latest, a run-number version, and an immutable commit tag.
+      # Production's image first: a failed push of the other package must not cost it its tag.
+      - name: Build + push csa-server (with Claude Code)
+        uses: docker/build-push-action@v6
+        with:
+          context: .                            # respects server/Dockerfile.dockerignore (server/ and client/ only)
+          file: server/Dockerfile
+          target: with-claude-code
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: CSA_VERSION=lab-${{ steps.vars.outputs.short }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:v0.1.${{ github.run_number }}
+            ${{ env.IMAGE }}:lab-${{ steps.vars.outputs.short }}
+            ${{ inputs.tag != '' && format('{0}:{1}', env.IMAGE, inputs.tag) || '' }}
+
+      - name: Build + push csa-server-slim
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: CSA_VERSION=lab-${{ steps.vars.outputs.short }}
+          tags: |
+            ${{ env.SLIM }}:latest
+            ${{ env.SLIM }}:v0.1.${{ github.run_number }}
+            ${{ env.SLIM }}:lab-${{ steps.vars.outputs.short }}
+            ${{ inputs.tag != '' && format('{0}:{1}', env.SLIM, inputs.tag) || '' }}

@@ -1,0 +1,17 @@
+{{- if not .Values.storage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-data
+  labels: {{- include "csa.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep    # uninstalling the chart never deletes the team's memory
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.storage.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}
+{{- end }}
