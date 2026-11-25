@@ -1,0 +1,96 @@
+name: Plugin release
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.claude-plugin/**'
+      - 'csa-plugin/**'
+      - 'scripts/validate-plugin-release.sh'
+      - '.github/workflows/plugin-release.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Create the plugin tag and GitHub release after all checks pass'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate readable plugin and run its tests on Python 3.9
+        run: uv run --python 3.9 --with pytest scripts/validate-plugin-release.sh
+      - name: Validate Claude Code manifests
+        run: npx -y @anthropic-ai/claude-code plugin validate .
+      - name: Clean install stays disabled and matches the reviewed source
+        run: |
+          export HOME="$RUNNER_TEMP/plugin-home"
+          export CLAUDE_CONFIG_DIR="$HOME/.claude"
+          mkdir -p "$HOME"
+          npx -y @anthropic-ai/claude-code plugin marketplace add "$GITHUB_WORKSPACE"
+          npx -y @anthropic-ai/claude-code plugin install csa@csa --json > install.json
+          npx -y @anthropic-ai/claude-code plugin list --json > list.json
+          install_path=$(python3 - <<'PY'
+          import json
+          rows = json.load(open("list.json"))
+          plugin = next(row for row in rows if row["id"] == "csa@csa")
+          assert plugin["enabled"] is False
+          assert plugin["projectEnabled"] is False
+          print(plugin["installPath"])
+          PY
+          )
+          diff -ru --no-dereference csa-plugin "$install_path"
+      - name: Build and verify the exact release archive
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("csa-plugin/.claude-plugin/plugin.json"))["version"])')
+          git archive --format=tar --prefix="coding-session-analyzer-plugin-v$version/" HEAD \
+            .claude-plugin csa-plugin | gzip -n > "plugin-v$version.tar.gz"
+          mkdir unpacked
+          tar -xzf "plugin-v$version.tar.gz" -C unpacked
+          diff -ru --no-dereference csa-plugin "unpacked/coding-session-analyzer-plugin-v$version/csa-plugin"
+      - name: Upload validated source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: csa-plugin-source
+          path: plugin-v*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require the reviewed master commit and a new matching tag
+        run: |
+          git fetch origin master --tags
+          test "$GITHUB_SHA" = "$(git rev-parse origin/master)" || {
+            echo 'Refusing release: dispatch this workflow from the current master commit.' >&2
+            exit 1
+          }
+          version=$(python3 -c 'import json; print(json.load(open("csa-plugin/.claude-plugin/plugin.json"))["version"])')
+          tag="plugin-v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Refusing release: $tag already exists." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_ENV"
+      - name: Create source-only plugin release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes

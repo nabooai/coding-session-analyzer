@@ -1,0 +1,1021 @@
+{
+  "_comment": "Shared adversarial redaction fixtures. Loaded by BOTH server/tests/test_redaction_e2e.py (Python redact.redact) and client/redact_fixtures_test.go (Go redactReport). Both must agree on every case -> client (Go) and server (Python) redactors are byte-parity mirrors. Every expectation was hand-verified against server/analyzer/redact.py (spec: docs/redaction.md). must_redact = substrings that MUST be ABSENT from the redacted output; must_keep = substrings that MUST REMAIN; labels = the EXACT set of labels that must have fired (over- AND under-redaction fail). NOTE: the credential regex has NO leading \\b, so underscore-glued config keys like `aws_secret_access_key=...` ARE redacted (see aws-secret-glued case); the trailing \\b still blocks mid-word hits (`Secretary:`). Secret tokens are redacted at EVERY mode (SECRETS patterns run unconditionally, before the level gate).",
+  "cases": [
+    {
+      "name": "openai_key_secrets",
+      "mode": "secrets",
+      "input": "Prod broke — the key sk-abcdEFGH1234567890ijklmnop was committed by mistake.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sk-abcdEFGH1234567890ijklmnop"
+      ],
+      "must_keep": [
+        "Prod broke",
+        "was committed by mistake."
+      ],
+      "labels": [
+        "openai_key"
+      ]
+    },
+    {
+      "name": "aws_key_secrets",
+      "mode": "secrets",
+      "input": "Rotate AKIAIOSFODNN7EXAMPLE immediately, it hit GitHub.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "AKIAIOSFODNN7EXAMPLE"
+      ],
+      "must_keep": [
+        "Rotate",
+        "immediately, it hit GitHub."
+      ],
+      "labels": [
+        "aws_key"
+      ]
+    },
+    {
+      "name": "github_token_secrets",
+      "mode": "secrets",
+      "input": "CI logged ghp_0123456789abcdefABCDEFghij and failed.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "ghp_0123456789abcdefABCDEFghij"
+      ],
+      "must_keep": [
+        "CI logged",
+        "and failed."
+      ],
+      "labels": [
+        "github_token"
+      ]
+    },
+    {
+      "name": "slack_token_secrets",
+      "mode": "secrets",
+      "input": "Webhook xoxb-1234567890-abcdefABCDEFghij posted twice.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "xoxb-1234567890-abcdefABCDEFghij"
+      ],
+      "must_keep": [
+        "Webhook",
+        "posted twice."
+      ],
+      "labels": [
+        "slack_token"
+      ]
+    },
+    {
+      "name": "jwt_secrets",
+      "mode": "secrets",
+      "input": "Token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N expired.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N"
+      ],
+      "must_keep": [
+        "Token",
+        "expired."
+      ],
+      "labels": [
+        "jwt"
+      ]
+    },
+    {
+      "name": "gcp_key_secrets",
+      "mode": "secrets",
+      "input": "Maps key AIzaSyD1aB2cD3eF4gH5iJ6kL7mN8oP9qRsTuvW leaked in the client bundle. longer key AIzaSyD-1234567890abcdefghijklmnopqrstuv here",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "AIzaSyD1aB2cD3eF4gH5iJ6kL7mN8oP9qRsTuvW",
+        "AIzaSyD-1234567890abcdefghijklmnopqrstuv"
+      ],
+      "must_keep": [
+        "Maps key",
+        "leaked in the client bundle.",
+        "longer key",
+        "here"
+      ],
+      "labels": [
+        "gcp_key"
+      ]
+    },
+    {
+      "name": "private_key_block_secrets",
+      "mode": "secrets",
+      "input": "Do not commit this:\n-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxfakekeyBODY1234567890\n-----END RSA PRIVATE KEY-----\nKeep the rest.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "MIIBOgIBAAJBAKj34GkxfakekeyBODY1234567890",
+        "BEGIN RSA PRIVATE KEY"
+      ],
+      "must_keep": [
+        "Do not commit this:",
+        "Keep the rest."
+      ],
+      "labels": [
+        "private_key"
+      ]
+    },
+    {
+      "name": "secrets_still_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "key sk-abcdEFGH1234567890ijklmnop and tok ghp_0123456789abcd for user mara@example.com",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sk-abcdEFGH1234567890ijklmnop",
+        "ghp_0123456789abcd",
+        "mara@example.com"
+      ],
+      "must_keep": [
+        "and tok",
+        "for user"
+      ],
+      "labels": [
+        "openai_key",
+        "github_token",
+        "email"
+      ]
+    },
+    {
+      "name": "secrets_still_redacted_at_strict",
+      "mode": "strict",
+      "input": "Bluefin used AKIAIOSFODNN7EXAMPLE and eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhYmMifQ.SflKxwRJSMeKKF2QT4fw tok",
+      "deny": [
+        "Bluefin"
+      ],
+      "allow": [],
+      "must_redact": [
+        "AKIAIOSFODNN7EXAMPLE",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhYmMifQ.SflKxwRJSMeKKF2QT4fw",
+        "Bluefin"
+      ],
+      "must_keep": [
+        "used",
+        "and",
+        "tok"
+      ],
+      "labels": [
+        "aws_key",
+        "jwt",
+        "denylisted"
+      ]
+    },
+    {
+      "name": "privacy_classes_kept_at_secrets",
+      "mode": "secrets",
+      "input": "mail mara@example.com; Authorization: Bearer abcDEF12345678; db postgres://u:p@pg.example.com:5432/prod; cred password=hunter2Pass; host db01.internal here.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "hunter2Pass"
+      ],
+      "must_keep": [
+        "mara@example.com",
+        "Bearer abcDEF12345678",
+        "postgres://u:p@pg.example.com",
+        "password=[REDACTED:credential]",
+        "db01.internal"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "conn_strings_kept_at_secrets",
+      "mode": "secrets",
+      "input": "dbs: postgres://app:s3cr3tPW@pg.example.com:5432/prod mysql://root:hunter2@10.0.0.5:3306/appdb mongodb://admin:M0ngoPass@mongo.example.net:27017/db redis://default:r3disSecret@cache.example.com:6379/0",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "app:s3cr3tPW@pg.example.com",
+        "root:hunter2@10.0.0.5",
+        "admin:M0ngoPass@mongo.example.net",
+        "default:r3disSecret@cache.example.com"
+      ],
+      "labels": []
+    },
+    {
+      "name": "conn_strings_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "dbs: postgres://app:s3cr3tPW@pg.example.com:5432/prod mysql://root:hunter2@10.0.0.5:3306/appdb mongodb://admin:M0ngoPass@mongo.example.net:27017/db redis://default:r3disSecret@cache.example.com:6379/0",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "s3cr3tPW",
+        "hunter2",
+        "M0ngoPass",
+        "r3disSecret",
+        "pg.example.com",
+        "mongo.example.net"
+      ],
+      "must_keep": [
+        "dbs:"
+      ],
+      "labels": [
+        "conn_string"
+      ]
+    },
+    {
+      "name": "email_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "reach sarah@acme.com or mara@example.com for access",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sarah@acme.com",
+        "mara@example.com"
+      ],
+      "must_keep": [
+        "reach",
+        "for access"
+      ],
+      "labels": [
+        "email"
+      ]
+    },
+    {
+      "name": "bearer_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "Authorization: bEaReR AbCdEf12345678 granted",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "bEaReR AbCdEf12345678",
+        "AbCdEf12345678"
+      ],
+      "must_keep": [
+        "Authorization:",
+        "granted"
+      ],
+      "labels": [
+        "bearer"
+      ]
+    },
+    {
+      "name": "credential_prose_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "config settings: password=hunter2Pass api_key: apikeyVALUE123 client_secret=cl13ntS3cr3t token=tok_abcdef12 done",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "hunter2Pass",
+        "apikeyVALUE123",
+        "cl13ntS3cr3t",
+        "tok_abcdef12"
+      ],
+      "must_keep": [
+        "config settings:",
+        "done"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "access_key_prose_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "leaked access_key = AKfakeVALUE123 in the log",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "AKfakeVALUE123"
+      ],
+      "must_keep": [
+        "leaked",
+        "in the log"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "aws_secret_access_key_glued_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "export aws_secret_access_key=wJalrXUtnFEMIfake123SECRETvalue in env",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "wJalrXUtnFEMIfake123SECRETvalue"
+      ],
+      "must_keep": [
+        "export",
+        "in env"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "_note": "non-ASCII adjacency parity: Python re \\b is Unicode-aware, Go RE2 is ASCII-only; without re.A the Python server backstop LEAKS a token glued to a non-ASCII letter while the Go client redacts it. These three lock both engines to ASCII \\b semantics.",
+      "name": "github_token_glued_to_non_ascii_letter",
+      "mode": "secrets",
+      "input": "éghp_0123456789abcdef",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "ghp_0123456789abcdef"
+      ],
+      "must_keep": [
+        "é"
+      ],
+      "labels": [
+        "github_token"
+      ]
+    },
+    {
+      "name": "jwt_glued_to_non_ascii_letter",
+      "mode": "secrets",
+      "input": "üeyJaaaaaaaa.bbbbbbbb.cccccccc",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "eyJaaaaaaaa.bbbbbbbb.cccccccc"
+      ],
+      "must_keep": [
+        "ü"
+      ],
+      "labels": [
+        "jwt"
+      ]
+    },
+    {
+      "name": "internal_hostname_trailing_non_ascii_letter",
+      "mode": "privacy",
+      "input": "host db01.internalé end",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "db01.internal"
+      ],
+      "must_keep": [
+        "é end"
+      ],
+      "labels": [
+        "hostname"
+      ]
+    },
+    {
+      "_note": "ASCII case-insensitivity that BOTH engines share (Go (?i) and Python re.I|re.A agree on A-Z<->a-z). Locks the intended case-folding. The Unicode-only fold divergence (ſ->s redacted by Go, kept by Python) is a documented residual in redact.py, NOT asserted here because the engines disagree on it.",
+      "name": "ascii_case_insensitive_keywords",
+      "mode": "privacy",
+      "input": "auth BEARER abcDEF12345678 and PASSWORD=Hunter2xyz here",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "BEARER abcDEF12345678",
+        "Hunter2xyz"
+      ],
+      "must_keep": [
+        "auth",
+        "here"
+      ],
+      "labels": [
+        "bearer",
+        "credential"
+      ]
+    },
+    {
+      "name": "internal_hostnames_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "hosts: db01.internal app.corp box.local svc.intranet node.lan up",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "db01.internal",
+        "app.corp",
+        "box.local",
+        "svc.intranet",
+        "node.lan"
+      ],
+      "must_keep": [
+        "hosts:",
+        "up"
+      ],
+      "labels": [
+        "hostname"
+      ]
+    },
+    {
+      "name": "public_hostnames_kept_at_privacy",
+      "mode": "privacy",
+      "input": "see docs.github.com and google.com and api.stripe.com online",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "docs.github.com",
+        "google.com",
+        "api.stripe.com"
+      ],
+      "labels": []
+    },
+    {
+      "name": "public_hostname_removed_by_deny_strict",
+      "mode": "strict",
+      "input": "see docs.github.com and google.com online",
+      "deny": [
+        "docs.github.com"
+      ],
+      "allow": [],
+      "must_redact": [
+        "docs.github.com"
+      ],
+      "must_keep": [
+        "google.com",
+        "see",
+        "online"
+      ],
+      "labels": [
+        "denylisted"
+      ]
+    },
+    {
+      "name": "name_and_codename_kept_at_privacy",
+      "mode": "privacy",
+      "input": "Sarah leads the Bluefin project with Jules on team",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "Sarah",
+        "Bluefin",
+        "Jules"
+      ],
+      "labels": []
+    },
+    {
+      "name": "coworker_name_removed_by_deny_strict",
+      "mode": "strict",
+      "input": "Sarah reviewed it; ping Sarah later",
+      "deny": [
+        "Sarah"
+      ],
+      "allow": [],
+      "must_redact": [
+        "Sarah"
+      ],
+      "must_keep": [
+        "reviewed it",
+        "ping",
+        "later"
+      ],
+      "labels": [
+        "denylisted"
+      ]
+    },
+    {
+      "name": "codename_removed_by_deny_case_insensitive_substring",
+      "mode": "strict",
+      "input": "Bluefin launch; BLUEFIN-2 planned; bluefin_ops ready",
+      "deny": [
+        "bluefin"
+      ],
+      "allow": [],
+      "must_redact": [
+        "Bluefin",
+        "BLUEFIN",
+        "bluefin"
+      ],
+      "must_keep": [
+        "launch",
+        "planned",
+        "ready"
+      ],
+      "labels": [
+        "denylisted"
+      ]
+    },
+    {
+      "name": "deny_applies_at_secrets_reconciliation",
+      "mode": "secrets",
+      "input": "codename Zephyr in the AKIAIOSFODNN7EXAMPLE build",
+      "deny": [
+        "Zephyr"
+      ],
+      "allow": [],
+      "must_redact": [
+        "Zephyr",
+        "AKIAIOSFODNN7EXAMPLE"
+      ],
+      "must_keep": [
+        "codename",
+        "in the",
+        "build"
+      ],
+      "labels": [
+        "aws_key",
+        "denylisted"
+      ]
+    },
+    {
+      "name": "allow_exception_keeps_pattern_match_email",
+      "mode": "privacy",
+      "input": "contact ops@example.com not mara@example.com please",
+      "deny": [],
+      "allow": [
+        "ops@example.com"
+      ],
+      "must_redact": [
+        "mara@example.com"
+      ],
+      "must_keep": [
+        "ops@example.com",
+        "contact",
+        "please"
+      ],
+      "labels": [
+        "email"
+      ]
+    },
+    {
+      "name": "allow_exception_keeps_denylisted_term",
+      "mode": "strict",
+      "input": "Bluefin and keep-me stay together",
+      "deny": [
+        "Bluefin",
+        "keep-me"
+      ],
+      "allow": [
+        "keep-me"
+      ],
+      "must_redact": [
+        "Bluefin"
+      ],
+      "must_keep": [
+        "keep-me",
+        "stay together"
+      ],
+      "labels": [
+        "denylisted"
+      ]
+    },
+    {
+      "name": "openai_key_not_matched_inside_a_word",
+      "mode": "secrets",
+      "input": "branch ask-questions-as-decisions merged; see task-handoff-protocol-memory and the risk-assessment-checklist-doc; disk-usage-monitoring-alerts fired.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "ask-questions-as-decisions",
+        "task-handoff-protocol-memory",
+        "risk-assessment-checklist-doc",
+        "disk-usage-monitoring-alerts"
+      ],
+      "labels": []
+    },
+    {
+      "name": "openai_key_still_redacted_at_word_boundaries",
+      "mode": "secrets",
+      "input": "sk-abcdEFGH1234567890ijklmnop at line start; OPENAI_API_KEY=sk-bbcdEFGH1234567890ijklmnop; quoted \"sk-cccdEFGH1234567890ijklmnop\"; (sk-dddEFGH1234567890ijklmnopq) and Bearer sk-eeedEFGH1234567890ijklmnopq",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sk-abcdEFGH1234567890ijklmnop",
+        "sk-bbcdEFGH1234567890ijklmnop",
+        "sk-cccdEFGH1234567890ijklmnop",
+        "sk-dddEFGH1234567890ijklmnopq",
+        "sk-eeedEFGH1234567890ijklmnopq"
+      ],
+      "must_keep": [
+        "at line start",
+        "OPENAI_API_KEY=",
+        "quoted"
+      ],
+      "labels": [
+        "openai_key"
+      ]
+    },
+    {
+      "name": "benign_lookalikes_kept_at_secrets",
+      "mode": "secrets",
+      "input": "commit 356a192b7913b04c54574d18c28d46e6395428ab; id 550e8400-e29b-41d4-a716-446655440000; pip install sk-learn; see https://github.com/acme/web/pull/28; slug my-feature-branch-name",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "356a192b7913b04c54574d18c28d46e6395428ab",
+        "550e8400-e29b-41d4-a716-446655440000",
+        "sk-learn",
+        "https://github.com/acme/web/pull/28",
+        "my-feature-branch-name"
+      ],
+      "labels": []
+    },
+    {
+      "name": "stripe_key_secrets",
+      "mode": "secrets",
+      "input": "billing broke: sk_live_51H8xQ2eZvKYlo2CabcdEFGH and the restricted rk_test_51H8xQ2eZvKYlo2CzzzzWXYZ both rotated.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sk_live_51H8xQ2eZvKYlo2CabcdEFGH",
+        "rk_test_51H8xQ2eZvKYlo2CzzzzWXYZ"
+      ],
+      "must_keep": [
+        "billing broke",
+        "both rotated."
+      ],
+      "labels": [
+        "stripe_key"
+      ]
+    },
+    {
+      "name": "stripe_publishable_key_kept_at_secrets",
+      "mode": "secrets",
+      "input": "the checkout page embeds pk_live_51H8xQ2eZvKYlo2CabcdEFGH client-side, which is fine.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "pk_live_51H8xQ2eZvKYlo2CabcdEFGH",
+        "which is fine."
+      ],
+      "labels": []
+    },
+    {
+      "name": "docker_npm_sendgrid_hf_tokens_secrets",
+      "mode": "secrets",
+      "input": "docker login -u me -p dckr_pat_aBcDeF12345678-_xyzQRS; npm token npm_abcdefghij0123456789ABCDEFGHIJ012345; mail SG.aBcDeF12345678xyzQRS9.zYxWvU98765432abcdefGHIJ; hub hf_aBcDeF12345678xyzQRS9zYxWvU98765432",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "dckr_pat_aBcDeF12345678-_xyzQRS",
+        "npm_abcdefghij0123456789ABCDEFGHIJ012345",
+        "SG.aBcDeF12345678xyzQRS9.zYxWvU98765432abcdefGHIJ",
+        "hf_aBcDeF12345678xyzQRS9zYxWvU98765432"
+      ],
+      "must_keep": [
+        "docker login -u me",
+        "npm token",
+        "hub"
+      ],
+      "labels": [
+        "docker_pat",
+        "npm_token",
+        "sendgrid_key",
+        "hf_token"
+      ]
+    },
+    {
+      "name": "vendor_prefixed_lookalikes_kept_at_secrets",
+      "mode": "secrets",
+      "input": "from huggingface_hub import hf_hub_download; npm_config_registry=https://registry.npmjs.org; sk_test_helper() is a fixture; SG.Blue is a colour; dckr_pat_len is a var.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "hf_hub_download",
+        "npm_config_registry",
+        "sk_test_helper()",
+        "SG.Blue",
+        "dckr_pat_len"
+      ],
+      "labels": []
+    },
+    {
+      "name": "gitlab_pypi_telegram_webhook_azure_secrets",
+      "mode": "secrets",
+      "input": "gitlab glpat-aBcDeF12345678xyzQRS; pypi-AgEIcHlwaS5vcmcCJDU0Nzg; bot 1234567890:AAHt-9xyzQRS_abcdefGHIJklmnop012345; hook https://hooks.slack.com/services/T00000000/B11111111/aBcDeF12345678xyzQRS9z; conn AccountKey=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==;",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "glpat-aBcDeF12345678xyzQRS",
+        "pypi-AgEIcHlwaS5vcmcCJDU0Nzg",
+        "1234567890:AAHt-9xyzQRS_abcdefGHIJklmnop012345",
+        "https://hooks.slack.com/services/T00000000/B11111111/aBcDeF12345678xyzQRS9z",
+        "AccountKey=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=="
+      ],
+      "must_keep": [
+        "gitlab",
+        "pypi",
+        "bot",
+        "hook",
+        "conn"
+      ],
+      "labels": [
+        "gitlab_pat",
+        "pypi_token",
+        "telegram_bot",
+        "slack_webhook",
+        "azure_key"
+      ]
+    },
+    {
+      "name": "new_vendor_lookalikes_kept_at_secrets",
+      "mode": "secrets",
+      "input": "pypi-server-config.ini; meeting 2026-07-17:AAA notes; docs at https://api.slack.com/messaging/webhooks; AccountKeyName=storage1; SG.Interactive.Ltd is a vendor.",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "pypi-server-config.ini",
+        "2026-07-17:AAA notes",
+        "https://api.slack.com/messaging/webhooks",
+        "AccountKeyName=storage1",
+        "SG.Interactive.Ltd"
+      ],
+      "labels": []
+    },
+    {
+      "name": "secret_key_env_redacted_at_privacy",
+      "mode": "privacy",
+      "input": "settings: DJANGO_SECRET_KEY=hunter2abcdef; STRIPE_SECRET_KEY=sk_test_notarealkey; ENCRYPTION_KEY=abcdef123456; SIGNING_KEY=zzzz9999; PRIVATE_KEY=abc12345",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "hunter2abcdef",
+        "abcdef123456",
+        "zzzz9999",
+        "abc12345",
+        "sk_test_notarealkey"
+      ],
+      "must_keep": [
+        "settings:"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "secret_key_lookalikes_kept_at_privacy",
+      "mode": "privacy",
+      "input": "Secretary: Dana; monkey=banana; keyboard=mechanical; the key: value pair; brokentokens: 3",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "Secretary: Dana",
+        "monkey=banana",
+        "keyboard=mechanical",
+        "the key: value pair",
+        "brokentokens: 3"
+      ],
+      "labels": []
+    },
+    {
+      "name": "credential_assignment_value_redacted_at_secrets",
+      "mode": "secrets",
+      "input": "Connect with password=hunter2-sekrit only via env; DB_PASSWORD = s3cr3t-val; apiKey: \"abcd1234efgh\"; client_secret='cl13ntS3cr3t'; export AUTH_TOKEN=abc123xyz; aws_secret_access_key=wJalrXUtnFEMIfake",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "hunter2-sekrit",
+        "s3cr3t-val",
+        "abcd1234efgh",
+        "cl13ntS3cr3t",
+        "abc123xyz",
+        "wJalrXUtnFEMIfake"
+      ],
+      "must_keep": [
+        "Connect with password=[REDACTED:credential] only via env",
+        "DB_PASSWORD = [REDACTED:credential]",
+        "apiKey: \"[REDACTED:credential]\"",
+        "client_secret='[REDACTED:credential]'",
+        "export AUTH_TOKEN=[REDACTED:credential]",
+        "aws_secret_access_key=[REDACTED:credential]"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "credential_assignment_in_escaped_jsonl_at_secrets",
+      "mode": "secrets",
+      "input": "{\"content\": \"{\\n  \\\"password\\\": \\\"hunter2xyz\\\",\\n  \\\"api_key\\\": \\\"abcd1234\\\"\\n}\"}",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "hunter2xyz",
+        "abcd1234"
+      ],
+      "must_keep": [
+        "\\\"password\\\": \\\"[REDACTED:credential]\\\",",
+        "\\\"api_key\\\": \\\"[REDACTED:credential]\\\"\\n}"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "credential_references_and_prose_kept_at_secrets",
+      "mode": "secrets",
+      "input": "password reset flow; the secret is to cache; token: the bearer header; password=$DB_PASSWORD; password=\"${DB_PASSWORD}\"; password=os.environ[\"DB_PASSWORD\"]; api_key = os.getenv(\"KEY\"); secret: process.env.SECRET; secrets: inherit; password_hash=abcdef; Secretary: Dana; pwd=abc",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "password reset flow",
+        "the secret is to cache",
+        "token: the bearer header",
+        "password=$DB_PASSWORD",
+        "password=\"${DB_PASSWORD}\"",
+        "password=os.environ[\"DB_PASSWORD\"]",
+        "api_key = os.getenv(\"KEY\")",
+        "secret: process.env.SECRET",
+        "secrets: inherit",
+        "password_hash=abcdef",
+        "Secretary: Dana",
+        "pwd=abc"
+      ],
+      "labels": []
+    },
+    {
+      "name": "credential_keeps_its_token_label_at_secrets",
+      "mode": "secrets",
+      "input": "OPENAI_API_KEY=sk-bbcdEFGH1234567890ijklmnop and aws_access_key_id=AKIAABCDEFGHIJKLMNOP",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "sk-bbcdEFGH",
+        "AKIAABCDEFGH"
+      ],
+      "must_keep": [
+        "OPENAI_API_KEY=[REDACTED:openai_key]",
+        "aws_access_key_id=[REDACTED:aws_key]"
+      ],
+      "labels": [
+        "openai_key",
+        "aws_key"
+      ]
+    },
+    {
+      "name": "credential_json_non_string_values_kept_at_secrets",
+      "mode": "secrets",
+      "input": "{\"input\": {\"secret\": true, \"api_key\": [1, 2, 3], \"access_token\": null, \"x\": 1}}",
+      "deny": [],
+      "allow": [],
+      "must_redact": [],
+      "must_keep": [
+        "\"secret\": true, \"api_key\": [1, 2, 3], \"access_token\": null, \"x\": 1}}"
+      ],
+      "labels": []
+    },
+    {
+      "name": "credential_value_starting_with_dollar_redacted_at_secrets",
+      "mode": "secrets",
+      "input": "password=$ecretHunter2 and password=$db_pass but PASSWORD=$DB_PASSWORD stays",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "$ecretHunter2",
+        "$db_pass"
+      ],
+      "must_keep": [
+        "password=[REDACTED:credential] and password=[REDACTED:credential] but PASSWORD=$DB_PASSWORD stays"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "credential_value_with_backslash_fully_redacted_at_secrets",
+      "mode": "secrets",
+      "input": "{\"cmd\": \"login password=ab\\\\cdefgh then password=\\\"hunter2xyz\\\" done\"}",
+      "deny": [],
+      "allow": [],
+      "must_redact": [
+        "cdefgh",
+        "hunter2xyz"
+      ],
+      "must_keep": [
+        "password=[REDACTED:credential] then password=\\\"[REDACTED:credential]\\\" done\"}"
+      ],
+      "labels": [
+        "credential"
+      ]
+    },
+    {
+      "name": "github_token_after_escaped_newline_in_raw_jsonl",
+      "mode": "secrets",
+      "input": "{\"content\":\"first line\\nghp_0123456789abcdefghij and more\"}",
+      "must_redact": [
+        "ghp_0123456789abcdefghij"
+      ],
+      "must_keep": [
+        "first line\\n[REDACTED:github_token] and more"
+      ],
+      "labels": [
+        "github_token"
+      ]
+    },
+    {
+      "name": "openai_key_after_escaped_tab_in_raw_jsonl",
+      "mode": "secrets",
+      "input": "{\"content\":\"key\\tsk-abcdEFGH1234567890ijklmnop\"}",
+      "must_redact": [
+        "sk-abcdEFGH1234567890ijklmnop"
+      ],
+      "must_keep": [
+        "key\\t[REDACTED:openai_key]"
+      ],
+      "labels": [
+        "openai_key"
+      ]
+    },
+    {
+      "name": "jwt_after_escaped_return_in_raw_jsonl",
+      "mode": "secrets",
+      "input": "{\"content\":\"a\\reyJaaaaaaaa.bbbbbbbb.cccccccc\"}",
+      "must_redact": [
+        "eyJaaaaaaaa.bbbbbbbb.cccccccc"
+      ],
+      "must_keep": [
+        "a\\r[REDACTED:jwt]"
+      ],
+      "labels": [
+        "jwt"
+      ]
+    },
+    {
+      "name": "bearer_after_escaped_newline_in_raw_jsonl",
+      "mode": "privacy",
+      "input": "{\"content\":\"curl\\nBearer abcdefgh12345678\"}",
+      "must_redact": [
+        "abcdefgh12345678"
+      ],
+      "must_keep": [
+        "curl\\n[REDACTED:bearer]"
+      ],
+      "labels": [
+        "bearer"
+      ]
+    },
+    {
+      "name": "a_word_after_a_literal_n_is_still_not_a_token",
+      "mode": "secrets",
+      "input": "the task-handoff-protocol-memory stays and nsk-abcdEFGH1234567890ijklmnop stays",
+      "must_redact": [],
+      "must_keep": [
+        "task-handoff-protocol-memory",
+        "nsk-abcdEFGH1234567890ijklmnop"
+      ],
+      "labels": []
+    },
+    {
+      "name": "github_token_after_escaped_ansi_colour_in_raw_jsonl",
+      "mode": "secrets",
+      "input": "{\"content\":\"\\u001b[0mghp_0123456789abcdefghij\"}",
+      "must_redact": [
+        "ghp_0123456789abcdefghij"
+      ],
+      "must_keep": [
+        "\\u001b[0m[REDACTED:github_token]"
+      ],
+      "labels": [
+        "github_token"
+      ]
+    },
+    {
+      "name": "openai_key_after_a_raw_ansi_colour",
+      "mode": "secrets",
+      "input": "\u001b[1;32msk-abcdEFGH1234567890ijklmnop",
+      "must_redact": [
+        "sk-abcdEFGH1234567890ijklmnop"
+      ],
+      "must_keep": [
+        "[1;32m[REDACTED:openai_key]"
+      ],
+      "labels": [
+        "openai_key"
+      ]
+    },
+    {
+      "name": "jwt_after_escaped_form_feed_and_unicode_escape",
+      "mode": "secrets",
+      "input": "{\"a\":\"x\\feyJaaaaaaaa.bbbbbbbb.cccccccc\",\"b\":\"\\u00e9ghp_0123456789abcdef\"}",
+      "must_redact": [
+        "eyJaaaaaaaa.bbbbbbbb.cccccccc",
+        "ghp_0123456789abcdef"
+      ],
+      "must_keep": [
+        "\\f[REDACTED:jwt]",
+        "\\u00e9[REDACTED:github_token]"
+      ],
+      "labels": [
+        "jwt",
+        "github_token"
+      ]
+    },
+    {
+      "name": "a_colour_code_alone_is_not_a_token",
+      "mode": "secrets",
+      "input": "\u001b[0mtask-handoff-protocol-memory is fine",
+      "must_redact": [],
+      "must_keep": [
+        "task-handoff-protocol-memory"
+      ],
+      "labels": []
+    }
+  ]
+}

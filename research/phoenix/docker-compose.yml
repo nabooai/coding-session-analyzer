@@ -1,0 +1,25 @@
+# Arize Phoenix — research-only trace/eval sink (ELv2: fine internally, NEVER add to the product
+# compose). One container, SQLite backend on the volume, ~2-3 GB RAM.
+#
+#   docker compose -f research/phoenix/docker-compose.yml up -d
+#   UI + OTLP/HTTP + REST: http://localhost:6006
+#   python3 research/run.py --otlp     # pushes this run's spans + scores
+#
+# ALWAYS start via this compose file, never a hand-typed `docker run` — a first bring-up that
+# omitted PHOENIX_WORKING_DIR wrote the DB into the container's writable layer and `docker rm`
+# destroyed a day of data (config drift between compose-as-documentation and run-as-reality).
+# Image is PINNED: Phoenix's alembic migrations run at boot and are one-way — a casual `pull` on
+# :latest silently migrates the SQLite file so the old image can't open it. Back up
+# ./data/phoenix.db before bumping the tag.
+services:
+  phoenix:
+    image: arizephoenix/phoenix:version-19.11.0
+    container_name: phoenix
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6006:6006"   # loopback only: Phoenix has no auth and spans carry corpus text
+    environment:
+      - PHOENIX_WORKING_DIR=/mnt/data
+      - PHOENIX_SQL_DATABASE_URL=sqlite:////mnt/data/phoenix.db   # explicit: DB path never inferred
+    volumes:
+      - ./data:/mnt/data

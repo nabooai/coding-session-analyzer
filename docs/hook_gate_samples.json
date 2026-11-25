@@ -1,0 +1,68 @@
+{
+  "_comment": "The gates a client applies before anything leaves the machine. Loaded by client/hook_gates_test.go (Go) and server/tests/test_plugin_client.py (the plugin's Python), so the two clients cannot drift. looks_secret runs on a query after redaction; should_recall on the raw prompt; ambient_query rewrites a prompt into the recall query; ignored_by matches a transcript path against ~/.csa/ignore and ~/.csa/only globs, where * and ? never cross a path separator.",
+  "looks_secret": {
+    "yes": [
+      "curl -H 'Authorization: Bearer abcDEF123456ghiJKL789mnoPQR012stuVWX345yz' api",
+      "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "DATABASE_URL=postgres://admin:Sup3rP4ss123@db.internal:5432/prod",
+      "the password is hunter2hunter2 for the box",
+      "éwJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY12é"
+    ],
+    "no": [
+      "the graph writer keeps deadlocking under concurrent load",
+      "what did we decide about the token bucket rate limiter?",
+      "why did we choose Redis Streams over Kafka for on-prem?",
+      "the token [REDACTED:github_token] leaked into the log"
+    ]
+  },
+  "should_recall": {
+    "yes": [
+      "Why Tomasz decided about the MCP platform in our webapp?",
+      "what did we decide about release rollback?",
+      "the graph writer keeps deadlocking under concurrent load",
+      "implement the login page and wire up the auth flow"
+    ],
+    "no": [
+      "How can I disable it?",
+      "yes do it now please",
+      "/clear the current session",
+      "ok",
+      "אבגדהוזחטי",
+      "<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n</task-notification>",
+      "<local-command-stdout>the deploy finished successfully on lab</local-command-stdout>",
+      "<command-name>/deploy-staging</command-name><command-args>server image</command-args>",
+      "<system-reminder>Codebase instructions are shown below, adhere to them.</system-reminder>"
+    ]
+  },
+  "ambient_query": [
+    {"in": "Use CSA to answer: \"Why Tomasz decided about the MCP platform in our webapp?\"", "out": "Tomasz the MCP platform in our webapp"},
+    {"in": "Why Tomasz decided about the MCP platform in our webapp?", "out": "Tomasz the MCP platform in our webapp"},
+    {"in": "what did we decide about Corpus explorer?", "out": "Corpus explorer"},
+    {"in": "has anyone hit the auth redirect bug before?", "out": "the auth redirect bug"},
+    {"in": "the graph writer keeps deadlocking", "out": "the graph writer keeps deadlocking"},
+    {"in": "?!?", "out": "?!?"}
+  ],
+  "ignored_by": [
+    {"pattern": "*secret-repo*", "path": "/Users/x/.claude/projects/-Users-x-Git-secret-repo/abc.jsonl", "match": true},
+    {"pattern": "*secret-repo*", "path": "/Users/x/.claude/projects/-Users-x-Git-public/abc.jsonl", "match": false},
+    {"pattern": "/tmp/x/*.jsonl", "path": "/tmp/x/s.jsonl", "match": true},
+    {"pattern": "/tmp/*.jsonl", "path": "/tmp/x/s.jsonl", "match": false},
+    {"pattern": "*client*", "path": "/Users/client/.claude/projects/-work/abc.jsonl", "match": false},
+    {"pattern": "proj*", "path": "/Users/project-owner/.claude/projects/-Users-x-repo/abc.jsonl", "match": false},
+    {"pattern": "-Users-x-proj*", "path": "/Users/x/.claude/projects/-Users-x-proj-a/abc.jsonl", "match": true},
+    {"pattern": "session_*", "path": "/data/bot/session_1.jsonl", "match": true},
+    {"pattern": "abc.jsonl", "path": "/a/b/abc.jsonl", "match": true},
+    {"pattern": "a?c.jsonl", "path": "/a/b/abc.jsonl", "match": true},
+    {"pattern": "/a?b/c.jsonl", "path": "/a/b/c.jsonl", "match": false},
+    {"pattern": "[ab]bc.jsonl", "path": "/x/abc.jsonl", "match": true},
+    {"pattern": "[^ab]bc.jsonl", "path": "/x/abc.jsonl", "match": false},
+    {"pattern": "[a-c]bc.jsonl", "path": "/x/abc.jsonl", "match": true},
+    {"pattern": "[!a]bc.jsonl", "path": "/x/abc.jsonl", "match": true},
+    {"pattern": "\\*bc.jsonl", "path": "/x/*bc.jsonl", "match": true},
+    {"pattern": "\\*bc.jsonl", "path": "/x/abc.jsonl", "match": false},
+    {"pattern": "[", "path": "/x/abc.jsonl", "match": false},
+    {"pattern": "abc[", "path": "/x/abc", "match": false},
+    {"pattern": "[]a]bc.jsonl", "path": "/x/abc.jsonl", "match": false},
+    {"pattern": "*", "path": "/x/abc.jsonl", "match": true}
+  ]
+}

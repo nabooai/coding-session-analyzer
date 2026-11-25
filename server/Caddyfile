@@ -1,0 +1,16 @@
+# The on-prem front door (docker-compose.trial.yml `--profile proxy`): TLS for CSA_PUBLIC_URL on this box.
+# The compose writes /tmp/tls.caddy at start: the customer certificate from ./certs when present, else
+# `tls internal`. No ACME, no OCSP, no HTTP-to-HTTPS listener: the proxy never opens an outbound connection.
+{
+	skip_install_trust
+	ocsp_stapling off
+	auto_https disable_redirects
+}
+
+{$CSA_PUBLIC_URL} {
+	import /tmp/tls.caddy
+	reverse_proxy /mcp* mcp:58768 {
+		flush_interval -1
+	}
+	reverse_proxy api:8766
+}

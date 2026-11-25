@@ -1,0 +1,40 @@
+{{- if eq .Values.frontDoor "ambassador" }}
+{{- if .Values.ambassador.createHost }}
+apiVersion: getambassador.io/v3alpha1
+kind: Host
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "csa.labels" . | nindent 4 }}
+spec:
+  hostname: {{ include "csa.host" . }}
+  requestPolicy:
+    insecure:
+      action: Redirect
+  tlsSecret:
+    name: {{ .Values.tls.secretName }}
+---
+{{- end }}
+apiVersion: getambassador.io/v3alpha1
+kind: Mapping
+metadata:
+  name: {{ .Release.Name }}-mcp
+  labels: {{- include "csa.labels" . | nindent 4 }}
+spec:
+  hostname: {{ include "csa.host" . }}
+  prefix: /mcp
+  rewrite: /mcp                          # Emissary rewrites the prefix to "/" by default; mcp answers only on /mcp
+  service: {{ .Release.Name }}:58768
+  timeout_ms: 3600000                    # a streamed MCP response is long-lived; Emissary's default is 3 s
+  idle_timeout_ms: 3600000
+---
+apiVersion: getambassador.io/v3alpha1
+kind: Mapping
+metadata:
+  name: {{ .Release.Name }}-api
+  labels: {{- include "csa.labels" . | nindent 4 }}
+spec:
+  hostname: {{ include "csa.host" . }}
+  prefix: /
+  service: {{ .Release.Name }}:8766
+  timeout_ms: 300000                     # an `ask` that plans a query, an ingest of a large transcript
+{{- end }}

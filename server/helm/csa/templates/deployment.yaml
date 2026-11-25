@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "csa.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                       # SQLite on one RWO volume: never two pods at once
+  selector:
+    matchLabels: {app: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        {{- include "csa.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config-file: {{ include (print $.Template.BasePath "/configfile.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false          # a Service named csa would inject a dozen CSA_* variables
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "csa.claim" . }}
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config
+        - {name: tmp, emptyDir: {}}
+        - {name: home, emptyDir: {}}
+      initContainers:
+        - name: migrate                  # schema to head, then the workspace and Okta from values
+          command: ["/app/.venv/bin/python", "csa.py", "migrate"]
+          {{- include "csa.container" . | nindent 10 }}
+          resources: {{- toYaml .Values.resources.api | nindent 12 }}
+      containers:
+        - name: api
+          command: ["/app/.venv/bin/python", "apiserver.py"]
+          {{- include "csa.container" . | nindent 10 }}
+          ports:
+            - {name: api, containerPort: 8766}
+          startupProbe:                  # 60 x 5s: a slow node's first start
+            httpGet: {path: /api/health, port: api}
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /api/health, port: api}
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /api/health, port: api}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          resources: {{- toYaml .Values.resources.api | nindent 12 }}
+        - name: mcp
+          command: ["/app/.venv/bin/python", "mcp_server.py", "--http"]
+          {{- include "csa.container" . | nindent 10 }}
+          ports:
+            - {name: mcp, containerPort: 58768}
+          startupProbe:
+            tcpSocket: {port: mcp}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: {port: mcp}       # /mcp needs a token, so probe the socket
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: {port: mcp}
+            periodSeconds: 30
+            failureThreshold: 4
+          resources: {{- toYaml .Values.resources.mcp | nindent 12 }}
+        - name: etl
+          command: ["/app/.venv/bin/python", "-m", "analyzer.drain_loop"]
+          {{- include "csa.container" . | nindent 10 }}
+          startupProbe:                  # 60 x 5s: the drain loop's first heartbeat on a slow node
+            {{- include "csa.etlProbe" . | nindent 12 }}
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          livenessProbe:                 # no HTTP port: restart when the loop stops touching its heartbeat
+            {{- include "csa.etlProbe" . | nindent 12 }}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          resources: {{- toYaml .Values.resources.etl | nindent 12 }}

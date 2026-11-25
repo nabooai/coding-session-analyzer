@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "csa.labels" . | nindent 4 }}
+data:
+  CSA_PUBLIC_URL: "https://{{ include "csa.host" . }}"
+  CSA_MCP_URL: "https://{{ include "csa.host" . }}/mcp"
+  CSA_AUTH: "org"
+  CSA_BIND: "0.0.0.0"

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels: {{- include "csa.labels" . | nindent 4 }}
+data:
+  config.json: |
+{{ dict "workspace" (dict "name" .Values.workspace.name "domain" .Values.workspace.domain "adminEmail" .Values.workspace.adminEmail)
+        "okta" (dict "issuer" .Values.okta.issuer "clientId" .Values.okta.clientId "adminGroup" .Values.okta.adminGroup)
+        "telemetry" (dict "otlpEndpoint" .Values.telemetry.otlpEndpoint) | toPrettyJson | indent 4 }}

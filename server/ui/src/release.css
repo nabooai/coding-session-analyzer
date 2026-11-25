@@ -1,0 +1,61 @@
+/* Focused public-release shell. Legacy admin views remain available through the account menu. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: light;
+  --paper: #fff;
+  --card: #fff;
+  --side: #fff;
+  --ink: #151515;
+  --muted: #6b6b6b;
+  --line: #dedede;
+  --line-soft: #ededed;
+  --accent: #151515;
+  --accent-soft: #f4f4f4;
+  --on-accent: #fff;
+}
+body { background: #fff; }
+.release-shell { min-height: 100vh; background: #fff; }
+.release-head {
+  width: min(920px, 100%); height: 72px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.release-head .brand { font-family: var(--sans); font-size: 18px; font-weight: 600; }
+.release-head .mark { display: none; }
+.release-head .nav-me { color: var(--muted); max-width: 180px; }
+.release-head .avatar { width: 25px; height: 25px; background: #f1f1f1; color: var(--ink); }
+.release-content { width: min(760px, 100%); margin: 0 auto; padding: 9vh 24px 80px; }
+.search-page { display: grid; gap: 20px; }
+.search-page:not(.has-query) { padding-top: 12vh; }
+.search-form { position: relative; display: flex; width: 100%; }
+.search-input {
+  width: 100%; min-height: 58px; padding: 14px 58px 14px 20px; border: 1px solid #cfcfcf;
+  border-radius: 14px; background: #fff; color: var(--ink); font: 17px/1.4 var(--sans);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 5%);
+}
+.search-input::placeholder { color: #777; }
+.search-input:focus-visible { outline: 3px solid #151515; outline-offset: 2px; border-color: #151515; }
+.search-submit {
+  position: absolute; right: 8px; top: 8px; width: 42px; height: 42px; border: 0; border-radius: 9px;
+  display: grid; place-items: center; background: #151515; color: #fff; cursor: pointer;
+}
+.search-submit svg { width: 18px; height: 18px; }
+.search-prompt, .search-status, .search-state { margin: 0; color: var(--muted); text-align: center; }
+.search-state.error { color: var(--bad); }
+.search-filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.search-filters select { min-width: 150px; padding: 8px 30px 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+.search-empty { padding: 34px 0; text-align: center; border-top: 1px solid var(--line-soft); }
+.search-empty h2 { margin: 0 0 6px; font: 600 20px/1.3 var(--sans); }
+.search-empty p { margin: 0; color: var(--muted); }
+.search-results { gap: 12px; }
+.search-results .fact { box-shadow: none; border-color: var(--line-soft); }
+.release-content > main:not(.search-page) { max-width: 100%; }
+.account-menu { background: #fff; }
+@media (max-width: 600px) {
+  .release-head { height: 60px; padding: 0 16px; }
+  .release-head .nav-who { display: none; }
+  .release-content { padding: 8vh 16px 48px; }
+  .search-page:not(.has-query) { padding-top: 8vh; }
+  .search-input { min-height: 54px; font-size: 16px; }
+  .search-filters { display: grid; grid-template-columns: 1fr; }
+  .search-filters select { width: 100%; }
+}

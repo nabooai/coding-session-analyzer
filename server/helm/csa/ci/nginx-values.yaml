@@ -1,0 +1,8 @@
+host: csa.example.com
+image: {tag: ci}
+frontDoor: nginx
+tls: {clusterIssuer: letsencrypt}
+okta: {issuer: "https://example.okta.com/oauth2/default", clientId: abc, adminGroup: CSA Admins}
+networkPolicy:
+  enabled: true
+  ingressFrom: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]

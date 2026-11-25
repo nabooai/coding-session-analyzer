@@ -1,0 +1,68 @@
+# CSA on Kubernetes. Required: host. Sign-in: workspace.adminEmail (built-in) or okta.*. Everything else
+# has a working default. values.schema.json checks the types; NOTES.txt prints the next step.
+#
+#   kubectl create namespace csa
+#   kubectl -n csa create secret generic csa-llm --from-literal=ANTHROPIC_API_KEY=sk-ant-...   # optional
+#   helm install csa ./csa-<version>.tgz -n csa -f my-values.yaml --wait --timeout 5m
+#
+# Budget, model, redaction and retention are Admin > Settings in the app, not values.
+
+host: ""                         # required: the URL people type is https://<host>; no scheme, no path
+
+image:
+  repository: ghcr.io/nabooai/csa-server-slim   # no Claude Code. Bedrock, Vertex and subscription tokens need an
+                                 # image you build with `--target with-claude-code` and push to your registry: name it here
+  tag: ""                        # empty = the chart appVersion, i.e. the release this .tgz came from
+  pullPolicy: IfNotPresent
+imagePullSecrets: [ghcr]         # [] for a public image or one the nodes can already pull; [<secret>] for a private registry
+
+# Who the workspace is and who may sign in. Applied before the pod starts, on every install and
+# upgrade: change a value, `helm upgrade`, done.
+workspace:
+  name: ""                       # e.g. "acme.com"
+  domain: ""                     # the email domain that signs in, e.g. acme.com
+  adminEmail: ""                 # first admin without SSO, e.g. it@acme.com; `migrate` logs a one-person sign-in link for it
+
+okta:
+  issuer: ""                     # e.g. https://acme.okta.com/oauth2/<auth server id>
+  clientId: ""                   # the OIDC app's client id (public client, PKCE, no secret)
+  adminGroup: ""                 # members of this Okta group are CSA admins; empty = roles managed in CSA
+
+llm:
+  secretName: csa-llm            # the default model credential (ANTHROPIC_API_KEY) until an admin registers
+                                 # providers on AI Models; optional, the pod starts without it
+
+telemetry:
+  otlpEndpoint: ""               # an OTLP/HTTP collector for traces, e.g. https://otel.your-company.example
+
+storage:
+  size: 20Gi
+  storageClass: ""               # empty = the cluster default; must be ReadWriteOnce
+  existingClaim: ""              # mount this PVC instead of creating <release>-data (a restored snapshot)
+
+# ambassador: an Emissary Host + two Mappings. nginx: an Ingress. none: route it yourself.
+frontDoor: ambassador
+tls:
+  secretName: csa-tls            # the certificate for <host>
+  clusterIssuer: ""              # set to have cert-manager issue it (nginx front door only)
+ambassador:
+  createHost: true               # false when the cluster already has a Host for <host>
+nginx:
+  className: nginx               # the IngressClass; use an internal one to keep CSA off the internet
+
+# Off by default. On: only ingressFrom may connect to the pod, and it may reach only DNS and https.
+networkPolicy:
+  enabled: false
+  ingressFrom: []                # required when enabled: your front door's pods, e.g.
+                                 # [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]
+  egress:                        # replace to narrow it, e.g. to your model gateway's address
+    - ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [169.254.169.254/32]}}]
+      ports: [{port: 443, protocol: TCP}]
+
+# No CPU limits: extraction is bursty and a throttled api answers slowly instead of failing. The etl
+# memory limit fits the default 3 parallel extractions (Admin > Settings); raise both together.
+resources:
+  api: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 2Gi}}
+  mcp: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 2Gi}}
+  etl: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 4Gi}}

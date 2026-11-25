@@ -1,0 +1,16 @@
+# The context is the repository root; the image needs server/ and client/ only. Runtime STATE (corpus, mounted
+# Claude login, a stale UI build, local client binaries) lives on volumes/mounts or is built by a stage, never
+# copied in. (claude-auth also becomes root-owned at runtime and breaks the build context.)
+*
+!server/
+!client/
+server/data/
+server/claude-auth/
+server/client-dist/
+server/.venv/
+server/ui/node_modules/
+server/ui/dist/
+server/e2e/
+**/__pycache__
+**/*.log
+server/.env
