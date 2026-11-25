@@ -1,0 +1,13 @@
+# Narrow, reviewed suppressions for deliberately synthetic redaction fixtures.
+# These files contain literal REDACTED/example values used to prove the redactor catches
+# credential-shaped strings. They are not credentials and must not be generalized.
+[allowlist]
+description = "Synthetic redaction fixtures only; reviewed 2026-11-25"
+paths = [
+  '''^client/main_test\.go$''',
+  '''^docs/hook_gate_samples\.json$''',
+  '''^docs/redaction_samples\.json$''',
+  '''^server/e2e/onboarding\.sh$''',
+  '''^server/tests/test_mcp_ask\.py$''',
+  '''^server/tests/test_redaction_e2e\.py$''',
+]
