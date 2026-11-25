@@ -83,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--private-output", type=Path, required=True, help="new access-controlled findings directory")
     parser.add_argument("--safe-report", type=Path, required=True, help="category-only Markdown output")
     parser.add_argument("--dictionary", type=Path, help="private newline-delimited terms; never copied")
+    parser.add_argument("--gitleaks-config", type=Path,
+                        default=Path(__file__).with_name("gitleaks-public.toml"),
+                        help="narrow, reviewed Gitleaks config; pass /dev/null to disable")
     args = parser.parse_args(argv)
 
     mirror = args.mirror.resolve()
@@ -109,7 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     write_private(args.private_output / "inventory.json", json.dumps(inventory, indent=2) + "\n")
 
     gitleaks_report = args.private_output / "gitleaks.json"
-    gitleaks = run(["gitleaks", "git", "--log-opts=--all", "--redact=100", "--report-format=json",
+    gitleaks_command = ["gitleaks", "git", "--log-opts=--all", "--redact=100", "--report-format=json"]
+    if str(args.gitleaks_config) != "/dev/null":
+        gitleaks_command.append(f"--config={args.gitleaks_config.resolve()}")
+    gitleaks = run(gitleaks_command + [
                     f"--report-path={gitleaks_report}", str(mirror)], check=False)
     write_private(args.private_output / "gitleaks.log", gitleaks.stdout + gitleaks.stderr)
     if gitleaks.returncode not in (0, 1):
