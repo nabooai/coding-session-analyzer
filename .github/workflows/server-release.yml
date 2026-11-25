@@ -102,14 +102,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.v.outputs.version }}
         run: |
-          gh release create "server-v${V}" --title "CSA server v${V}" --generate-notes --notes "\
+          cat > release-notes.md <<EOF
           Docker image: \`${SLIM}:${V}\` (multi-arch amd64+arm64, no Claude Code; Bedrock, Vertex and subscription tokens need the Dockerfile's \`with-claude-code\` target).
 
           **Deploy this version**: set \`CSA_SERVER_IMAGE=${SLIM}:${V}\` in \`server/.env\`, then
           \`docker compose -f docker-compose.trial.yml pull && docker compose -f docker-compose.trial.yml up -d\`.
           Roll back by pointing \`CSA_SERVER_IMAGE\` at an earlier \`server-v*\` tag and repeating.
 
-          **Offline bundle:** \`csa-onprem-${V}.tar.gz\` below, verified as in \`bundle.md\` inside it."
+          **Offline bundle:** \`csa-onprem-${V}.tar.gz\` below, verified as in \`bundle.md\` inside it.
+          EOF
+          if gh release view "server-v${V}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "server-v${V}" --repo "$GITHUB_REPOSITORY" --title "CSA server v${V}" --notes-file release-notes.md
+          else
+            gh release create "server-v${V}" --repo "$GITHUB_REPOSITORY" --title "CSA server v${V}" --generate-notes --notes-file release-notes.md
+          fi
 
   # The offline bundle: everything a box with no registry access needs, signed so it can be checked there.
   bundle:
