@@ -168,9 +168,10 @@ jobs:
             docker pull --platform "linux/$arch" "$ref"
             docker tag "$ref" "caddy:$ver-$arch"
             docker save -o "$B/caddy-$ver-$arch.tar" "caddy:$ver-$arch"
-            docker rmi "caddy:$ver-$arch"
           done
-          # Keep the digest reference until both architecture images have been exported.
+          # Keep all local tags and the digest reference until both exports complete; removing one
+          # platform tag can delete shared manifest metadata needed by the second pull.
+          docker rmi "caddy:$ver-amd64" "caddy:$ver-arm64" 2>/dev/null || true
           docker rmi "$ref" 2>/dev/null || true
           cat > "$B/docker-compose.bundle.yml" <<EOF
           # From the offline bundle csa-onprem-${V}. The proxy image is caddy-${ver}-<arch>.tar, loaded by tag:
