@@ -15,6 +15,7 @@ Why give teammates access to every session? Choose exactly which projects and se
 More synthetic UI examples:
 
 ![CSA search view](docs/assets/readme/hero-light.png)
+![CSA search view in dark mode](docs/assets/readme/hero-dark.png)
 ![CSA mobile search view](docs/assets/readme/search-mobile.png)
 ![CSA observation view](docs/assets/readme/observe.png)
 ![CSA improvement view](docs/assets/readme/improve.png)
