@@ -12,6 +12,13 @@ Why give teammates access to every session? Choose exactly which projects and se
 
 ![CSA search results built from synthetic session data](docs/assets/readme/discover.png)
 
+More synthetic UI examples:
+
+![CSA search view](docs/assets/readme/hero-light.png)
+![CSA mobile search view](docs/assets/readme/search-mobile.png)
+![CSA observation view](docs/assets/readme/observe.png)
+![CSA improvement view](docs/assets/readme/improve.png)
+
 ## Requirements
 
 - Docker Engine 24 or later with Docker Compose v2.20 or later
